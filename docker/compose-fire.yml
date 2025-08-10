@@ -1,29 +1,14 @@
-name: firecrawl
-
-x-common-service: &common-service
-  # NOTE: If you don't want to build the service locally,
-  # uncomment the build: statement and comment out the image: statement
-  image: ghcr.io/mendableai/firecrawl
-  # build: apps/api
-
-  ulimits:
-    nofile:
-      soft: 65535
-      hard: 65535
-  networks:
-    - backend
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
+name: autodoc
 
 x-common-env: &common-env
-  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-  REDIS_RATE_LIMIT_URL: ${REDIS_URL:-redis://redis:6379}
-  PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://playwright-service:3000/scrape}
+  REDIS_URL: ${REDIS_URL:-redis://firecrawl-redis:6379}
+  REDIS_RATE_LIMIT_URL: ${REDIS_URL:-redis://firecrawl-redis:6379}
+  PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://firecrawl-playwright-service:3000/scrape}
   USE_DB_AUTHENTICATION: ${USE_DB_AUTHENTICATION}
   OPENAI_API_KEY: ${OPENAI_API_KEY}
   OPENAI_BASE_URL: ${OPENAI_BASE_URL}
   MODEL_NAME: ${MODEL_NAME}
-  MODEL_EMBEDDING_NAME: ${MODEL_EMBEDDING_NAME} 
+  MODEL_EMBEDDING_NAME: ${MODEL_EMBEDDING_NAME}   
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL} 
   SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
   BULL_AUTH_KEY: ${BULL_AUTH_KEY}
@@ -45,11 +30,8 @@ x-common-env: &common-env
   SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES}
 
 services:
-  playwright-service:
-    # NOTE: If you don't want to build the service locally,
-    # uncomment the build: statement and comment out the image: statement
+  firecrawl-playwright-service:
     image: ghcr.io/mendableai/playwright-service:latest
-    # build: apps/playwright-service-ts
     environment:
       PORT: 3000
       PROXY_SERVER: ${PROXY_SERVER}
@@ -59,8 +41,16 @@ services:
     networks:
       - backend
 
-  api:
-    <<: *common-service
+  firecrawl-api:
+    image: ghcr.io/mendableai/firecrawl
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       <<: *common-env
       HOST: "0.0.0.0"
@@ -68,31 +58,34 @@ services:
       FLY_PROCESS_GROUP: app
       ENV: local
     depends_on:
-      - redis
-      - playwright-service
+      - firecrawl-redis
+      - firecrawl-playwright-service
     ports:
       - "${PORT:-3002}:${INTERNAL_PORT:-3002}"
     command: [ "pnpm", "run", "start:production" ]
 
-  worker:
-    <<: *common-service
+  firecrawl-worker:
+    image: ghcr.io/mendableai/firecrawl
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       <<: *common-env
       FLY_PROCESS_GROUP: worker
       ENV: local
     depends_on:
-      - redis
-      - playwright-service
-      - api
+      - firecrawl-redis
+      - firecrawl-playwright-service
+      - firecrawl-api
     command: [ "pnpm", "run", "workers" ]
 
-  redis:
-    # NOTE: If you want to use Valkey (open source) instead of Redis (source available),
-    # uncomment the Valkey statement and comment out the Redis statement.
-    # Using Valkey with Firecrawl is untested and not guaranteed to work. Use with caution.
+  firecrawl-redis:
     image: redis:alpine
-    # image: valkey/valkey:alpine
-
     networks:
       - backend
     command: redis-server --bind 0.0.0.0
