@@ -5,6 +5,8 @@ from typing import Any, List, Optional, Dict, Callable
 from llama_index.core.bridge.pydantic import PrivateAttr
 from llama_index.core.readers.base import BasePydanticReader
 from llama_index.core.schema import Document
+import asyncio
+from tqdm import tqdm
 
 
 class FireCrawlWebReader(BasePydanticReader):
@@ -32,6 +34,8 @@ class FireCrawlWebReader(BasePydanticReader):
     api_url: Optional[str]
     mode: Optional[str]
     params: Optional[dict]
+    documents: List[Document]
+    pbar: Optional[tqdm]
 
     _metadata_fn: Optional[Callable[[str], Dict]] = PrivateAttr()
 
@@ -60,7 +64,9 @@ class FireCrawlWebReader(BasePydanticReader):
         firecrawl = firecrawl.FirecrawlApp(api_key=api_key, api_url=api_url)
 
         params = params or {}
-        params["integration"] = "llamaindex"
+        # params["integration"] = "llamaindex"
+        documents = []
+        pbar = None
 
         super().__init__(
             firecrawl=firecrawl,
@@ -68,11 +74,40 @@ class FireCrawlWebReader(BasePydanticReader):
             api_url=api_url,
             mode=mode,
             params=params,
+            documents=documents,
+            pbar=pbar,
         )
 
     @classmethod
     def class_name(cls) -> str:
         return "Firecrawl_reader"
+
+    def on_document(self, detail):
+        """Handle a new document event."""
+        text = detail['data']['markdown']
+        metadata = detail['data']['metadata']
+        self.documents.append(
+            Document(
+                text=text,
+                metadata=metadata,
+            )
+        )
+        self.pbar.update(1)
+
+    def on_error(self, detail):
+        """Handle an error event."""
+        print("Error occurred: ", detail)
+
+    async def start_crawl_and_watch(self, url: str):
+        # Initiate the crawl job and get the watcher
+        watcher = self.firecrawl.crawl_url_and_watch(url, **self.params)
+
+        # Add event listeners
+        watcher.add_event_listener("document", self.on_document)
+        watcher.add_event_listener("error", self.on_error)
+
+        # Start the watcher
+        await watcher.connect()
 
     def load_data(
         self,
@@ -98,27 +133,36 @@ class FireCrawlWebReader(BasePydanticReader):
         if sum(x is not None for x in [url, query, urls]) != 1:
             raise ValueError("Exactly one of url, query, or urls must be provided.")
 
-        documents = []
+        self.documents = []
 
         if self.mode == "scrape":
             # [SCRAPE] params: https://docs.firecrawl.dev/api-reference/endpoint/scrape
             if url is None:
                 raise ValueError("URL must be provided for scrape mode.")
             firecrawl_docs = self.firecrawl.scrape_url(url, **self.params)
-            documents.append(
+            self.documents.append(
                 Document(
                     text=firecrawl_docs.markdown,
                     metadata=firecrawl_docs.metadata,
                 )
             )
+        elif self.mode == "async_crawl":
+            # [CRAWL] params: https://docs.firecrawl.dev/api-reference/endpoint/crawl-post
+            if url is None:
+                raise ValueError("URL must be provided for crawl mode.")
+            
+            self.pbar = tqdm(total=self.params.get('limit', None), desc="Firecrawl")
+            asyncio.run(self.start_crawl_and_watch(url=url))
+            self.pbar.close()
         elif self.mode == "crawl":
             # [CRAWL] params: https://docs.firecrawl.dev/api-reference/endpoint/crawl-post
             if url is None:
                 raise ValueError("URL must be provided for crawl mode.")
+            
             firecrawl_docs = self.firecrawl.crawl_url(url, **self.params)
             firecrawl_docs = firecrawl_docs.data
             for doc in firecrawl_docs:
-                documents.append(
+                self.documents.append(
                     Document(
                         text=doc.markdown,
                         metadata=doc.metadata,
@@ -168,7 +212,7 @@ class FireCrawlWebReader(BasePydanticReader):
                             metadata.update(result["metadata"])
 
                         # Create document
-                        documents.append(
+                        self.documents.append(
                             Document(
                                 text=text,
                                 metadata=metadata,
@@ -178,7 +222,7 @@ class FireCrawlWebReader(BasePydanticReader):
                     # Handle unsuccessful response
                     warning = search_response.get("warning", "Unknown error")
                     print(f"Search was unsuccessful: {warning}")
-                    documents.append(
+                    self.documents.append(
                         Document(
                             text=f"Search for '{query}' was unsuccessful: {warning}",
                             metadata={
@@ -191,7 +235,7 @@ class FireCrawlWebReader(BasePydanticReader):
             else:
                 # Handle unexpected response format
                 print(f"Unexpected search response format: {type(search_response)}")
-                documents.append(
+                self.documents.append(
                     Document(
                         text=str(search_response),
                         metadata={"source": "search", "query": query},
@@ -249,7 +293,7 @@ class FireCrawlWebReader(BasePydanticReader):
                             metadata["sources"] = sources
 
                         # Create document
-                        documents.append(
+                        self.documents.append(
                             Document(
                                 text=text,
                                 metadata=metadata,
@@ -258,7 +302,7 @@ class FireCrawlWebReader(BasePydanticReader):
                     else:
                         # Handle empty data in successful response
                         print("Extract response successful but no data returned")
-                        documents.append(
+                        self.documents.append(
                             Document(
                                 text="Extraction was successful but no data was returned",
                                 metadata={"urls": urls, "source": "extract"},
@@ -268,7 +312,7 @@ class FireCrawlWebReader(BasePydanticReader):
                     # Handle unsuccessful response
                     warning = extract_response.get("warning", "Unknown error")
                     print(f"Extraction was unsuccessful: {warning}")
-                    documents.append(
+                    self.documents.append(
                         Document(
                             text=f"Extraction was unsuccessful: {warning}",
                             metadata={
@@ -281,7 +325,7 @@ class FireCrawlWebReader(BasePydanticReader):
             else:
                 # Handle unexpected response format
                 print(f"Unexpected extract response format: {type(extract_response)}")
-                documents.append(
+                self.documents.append(
                     Document(
                         text=str(extract_response),
                         metadata={"urls": urls, "source": "extract"},
@@ -292,4 +336,4 @@ class FireCrawlWebReader(BasePydanticReader):
                 "Invalid mode. Please choose 'scrape', 'crawl', 'search', or 'extract'."
             )
 
-        return documents
+        return self.documents
