@@ -93,6 +93,10 @@ class FireCrawlWebReader(BasePydanticReader):
             )
         )
         self.pbar.update(1)
+    
+    def on_done(self, detail):
+        print("DONE", detail['status'])
+        self.done_event.set()
 
     def on_error(self, detail):
         """Handle an error event."""
@@ -104,6 +108,7 @@ class FireCrawlWebReader(BasePydanticReader):
 
         # Add event listeners
         watcher.add_event_listener("document", self.on_document)
+        watcher.add_event_listener("done", self.on_done)
         watcher.add_event_listener("error", self.on_error)
 
         # Start the watcher
