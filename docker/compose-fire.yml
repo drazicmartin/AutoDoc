@@ -1,5 +1,20 @@
 name: autodoc
 
+x-common-service: &common-service
+  # NOTE: If you don't want to build the service locally,
+  # uncomment the build: statement and comment out the image: statement
+  image: ghcr.io/mendableai/firecrawl
+  # build: apps/api
+
+  ulimits:
+    nofile:
+      soft: 65535
+      hard: 65535
+  networks:
+    - backend
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 x-common-env: &common-env
   REDIS_URL: ${REDIS_URL:-redis://firecrawl-redis:6379}
   REDIS_RATE_LIMIT_URL: ${REDIS_URL:-redis://firecrawl-redis:6379}
@@ -42,21 +57,15 @@ services:
       - backend
 
   firecrawl-api:
-    image: ghcr.io/mendableai/firecrawl
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-    networks:
-      - backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    <<: *common-service
     environment:
       <<: *common-env
       HOST: "0.0.0.0"
       PORT: ${INTERNAL_PORT:-3002}
       FLY_PROCESS_GROUP: app
       ENV: local
+      USE_GO_MARKDOWN_PARSER: ${USE_GO_MARKDOWN_PARSER}
+      CONNECTION_MONITOR_INTERVAL: ${CONNECTION_MONITOR_INTERVAL}
     depends_on:
       - firecrawl-redis
       - firecrawl-playwright-service
@@ -65,15 +74,7 @@ services:
     command: [ "pnpm", "run", "start:production" ]
 
   firecrawl-worker:
-    image: ghcr.io/mendableai/firecrawl
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-    networks:
-      - backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    <<: *common-service
     environment:
       <<: *common-env
       FLY_PROCESS_GROUP: worker
