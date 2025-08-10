@@ -1,0 +1,17 @@
+torch:
+  description: "PyTorch is an open-source machine learning library based on the Torch library."
+  url: "https://docs.pytorch.org/docs/{version}/index.html"
+  versions:
+    - "2.8"
+    # - "2.7"
+    # - "2.6"
+    # - "2.5"
+    # - "2.4"
+    # - "2.3"
+    # - "2.2"
+    # - "2.1"
+    # - "2.0"
+    # - "1.13"
+    # - "1.12"
+    # - "1.11"
+    # - "1.10"
