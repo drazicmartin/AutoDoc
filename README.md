@@ -25,6 +25,8 @@ copy docker\.env.example docker\.env
 
 # Start services
 $env:COMPOSE_FILE="docker\compose-fire.yml;docker\compose-chroma.yml"
+# or with fire simple
+$env:COMPOSE_FILE="docker/compose-fire-simple.yml;docker/compose-chroma.yml"
 docker compose up -d
 
 # Install and run
@@ -39,6 +41,8 @@ cp docker/.env.example docker/.env
 
 # Start services
 COMPOSE_FILE="docker/compose-fire.yml:docker/compose-chroma.yml"
+# or with fire simple
+COMPOSE_FILE="docker/compose-fire-simple.yml:docker/compose-chroma.yml"
 docker compose up -d
 
 # Install and run

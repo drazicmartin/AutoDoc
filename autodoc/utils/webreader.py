@@ -1,12 +1,33 @@
 """Firecrawl Web Reader."""
 
-from typing import Any, List, Optional, Dict, Callable
+import asyncio
+from datetime import datetime
+from typing import (Any, Callable, Dict, Generic, List, Literal, Optional,
+                    TypeVar, Union)
 
+import firecrawl
+import pydantic
 from llama_index.core.bridge.pydantic import PrivateAttr
 from llama_index.core.readers.base import BasePydanticReader
 from llama_index.core.schema import Document
-import asyncio
+from pydantic import Field
 from tqdm import tqdm
+
+
+# Your patched model
+class PatchedCrawlStatusResponse(pydantic.BaseModel):
+    """Response from crawl status checks (patched)."""
+    success: bool = True
+    status: Literal["scraping", "completed", "failed", "cancelled"]
+    completed: int
+    total: int
+    creditsUsed: Optional[int] = None
+    expiresAt: datetime
+    next: Optional[str] = None
+    data: List[firecrawl.firecrawl.FirecrawlDocument]
+
+# Replace in the library
+firecrawl.firecrawl.CrawlStatusResponse = PatchedCrawlStatusResponse
 
 
 class FireCrawlWebReader(BasePydanticReader):
@@ -62,11 +83,13 @@ class FireCrawlWebReader(BasePydanticReader):
             )
 
         firecrawl = firecrawl.FirecrawlApp(api_key=api_key, api_url=api_url)
-
+        api_key = api_key
         params = params or {}
         # params["integration"] = "llamaindex"
         documents = []
         pbar = None
+        mode = mode
+        api_url = api_url
 
         super().__init__(
             firecrawl=firecrawl,

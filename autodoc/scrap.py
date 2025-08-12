@@ -50,7 +50,7 @@ chroma_client = chromadb.HttpClient(host=CHROMA_URL, port=CHROMA_PORT)
 def main(
     config_path: str = "docs.yml",
     ow: bool = False,  # overwrite existing collections
-    limit: int = 1000,
+    limit: int = 300,
     debug: bool = False,  # Add debug parameter
 ):
     setup_logger(debug)
@@ -91,7 +91,6 @@ def main(
                 params=dict(
                     scrape_options=ScrapeOptions(
                         formats=['markdown'],
-                        maxAge=86400000,
                     ),
                     include_paths=[f".*/{version}/.*"],
                     allow_backward_links=True,
