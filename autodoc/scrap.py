@@ -2,6 +2,7 @@ import logging
 import os
 
 import chromadb
+from tqdm import tqdm
 import typer
 import yaml
 from firecrawl import FirecrawlApp, ScrapeOptions
@@ -50,7 +51,7 @@ chroma_client = chromadb.HttpClient(host=CHROMA_URL, port=CHROMA_PORT)
 def main(
     config_path: str = "docs.yml",
     ow: bool = False,  # overwrite existing collections
-    limit: int = 300,
+    limit: int = 1000,
     debug: bool = False,  # Add debug parameter
 ):
     setup_logger(debug)
@@ -87,7 +88,7 @@ def main(
             firecrawl_reader = FireCrawlWebReader(
                 api_url=FIRECRAWL_URL,
                 api_key="",
-                mode="crawl",
+                mode="async_crawl",
                 params=dict(
                     scrape_options=ScrapeOptions(
                         formats=['markdown'],
@@ -103,24 +104,29 @@ def main(
             lib_documents = firecrawl_reader.load_data(url=url)
             logger.debug(f"Loaded {len(lib_documents)} documents")
 
+            lib_documents = [doc for doc in lib_documents if doc.text.strip() != '']
+            logger.debug(f"Filtered documents: {len(lib_documents)}")
+
             for doc in lib_documents:
                 doc.metadata = {k: v for k, v in doc.metadata.items() if isinstance(v, (str, int, float, bool, type(None)))}
             logger.debug("Document metadata filtered")
-
-            vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-            logger.debug("Vector store initialized")
 
             parser = SimpleNodeParser.from_defaults(chunk_size=1024, chunk_overlap=100)
             nodes = parser.get_nodes_from_documents(lib_documents)
             logger.debug(f"Documents chunked into {len(nodes)} nodes")
 
-            embeddings = ollama_embedding.get_text_embedding_batch([node.text for node in nodes])
-            for node, embedding in zip(nodes, embeddings):
-                node.embedding = embedding
+            vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+            logger.debug("Vector store initialized")
+
+            batch_size = 512
+            for i in tqdm(range(0, len(nodes), batch_size)):
+                embeddings = ollama_embedding.get_text_embedding_batch([node.text for node in nodes[i:i + batch_size]])
+                for node, embedding in zip(nodes[i:i + batch_size], embeddings):
+                    node.embedding = embedding
+                vector_store.add(nodes[i:i + batch_size])
             logger.debug("Node embeddings generated")
-            
-            vector_store.add(nodes)
-            logger.debug("Nodes added to vector store")
+
+            logger.debug(f"{len(nodes)} Nodes added to vector store")
 
             logger.info(f"Completed processing {lib_name} version {version}")
     
