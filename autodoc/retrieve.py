@@ -39,9 +39,9 @@ def search(
     retriever_engine = index.as_retriever()
     response = retriever_engine.retrieve(query)
 
-    result = response[0]
-    print(result.score)
-    print(result)
+    for result in response:
+        print(result.score)
+        print(result.metadata['sourceURL'])
 
 if __name__ == "__main__":
     typer.run(search)
