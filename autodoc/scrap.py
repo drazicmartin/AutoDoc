@@ -95,7 +95,7 @@ def main(
                         formats=['markdown'],
                     ),
                     include_paths=[f".*/{version}/.*"],
-                    allow_backward_links=True,
+                    allow_backward_links=False,
                     allow_external_links=False,
                     limit=limit,
                 )
