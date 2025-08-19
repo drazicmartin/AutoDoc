@@ -108,6 +108,14 @@ def main(
             lib_documents = [doc for doc in lib_documents if doc.text.strip() != '']
             logger.debug(f"Filtered documents: {len(lib_documents)}")
 
+            # add all url to a txt file named urls.txt
+            if debug:
+                debug_dir = "debug"
+                os.makedirs(debug_dir, exist_ok=True)
+                with open(os.path.join(debug_dir, "urls.txt"), "w") as f:
+                    for doc in lib_documents:
+                        f.write(doc.metadata.get("sourceURL", "") + "\n")
+
             for doc in lib_documents:
                 doc.metadata = {k: v for k, v in doc.metadata.items() if isinstance(v, (str, int, float, bool, type(None)))}
             logger.debug("Document metadata filtered")
