@@ -28,6 +28,7 @@ class PatchedCrawlStatusResponse(pydantic.BaseModel):
 
 # Replace in the library
 firecrawl.firecrawl.CrawlStatusResponse = PatchedCrawlStatusResponse
+from firecrawl import FirecrawlApp
 
 
 class FireCrawlWebReader(BasePydanticReader):
@@ -158,6 +159,7 @@ class FireCrawlWebReader(BasePydanticReader):
             ValueError: If invalid combination of parameters is provided.
 
         """
+        self.firecrawl: FirecrawlApp
         if sum(x is not None for x in [url, query, urls]) != 1:
             raise ValueError("Exactly one of url, query, or urls must be provided.")
 
@@ -361,7 +363,7 @@ class FireCrawlWebReader(BasePydanticReader):
                 )
         else:
             raise ValueError(
-                "Invalid mode. Please choose 'scrape', 'crawl', 'search', or 'extract'."
+                "Invalid mode. Please choose 'scrape', 'async_crawl', 'crawl', 'search', or 'extract'."
             )
 
         return self.documents

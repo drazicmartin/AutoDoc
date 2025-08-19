@@ -53,6 +53,7 @@ def main(
     ow: bool = False,  # overwrite existing collections
     limit: int = 1000,
     debug: bool = False,  # Add debug parameter
+    mode: str = "async_crawl",
 ):
     setup_logger(debug)
     logger.debug("Starting documentation processing")
@@ -88,7 +89,7 @@ def main(
             firecrawl_reader = FireCrawlWebReader(
                 api_url=FIRECRAWL_URL,
                 api_key="",
-                mode="async_crawl",
+                mode=mode,
                 params=dict(
                     scrape_options=ScrapeOptions(
                         formats=['markdown'],
