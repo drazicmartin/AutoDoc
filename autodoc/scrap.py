@@ -106,7 +106,7 @@ def main(
             logger.debug(f"Loaded {len(lib_documents)} documents")
 
             lib_documents = [doc for doc in lib_documents if doc.text.strip() != '']
-            logger.debug(f"Filtered documents: {len(lib_documents)}")
+            logger.debug(f"Num documents after filtering: {len(lib_documents)}")
 
             # add all url to a txt file named urls.txt
             if debug:
